@@ -613,6 +613,8 @@ server <- function(input, output) {
   cats$area <- cats$arcmin1*cats$arcmin2
   cats$surf_bright <- cats$bright/cats$area
   
+  cats$log_surf_bright <- log10(cats$surf_bright)
+  
   cats$season <- tolower(cats$season)
   
   
@@ -691,7 +693,7 @@ server <- function(input, output) {
   
   
   thehighlightedone <- reactive({
-    tbl1 <- cats[, c(1,3,20,5:8,11,16,17,18)]
+    tbl1 <- cats[, c(1,3,20,5:8,11,16,17,18,19)]
     cbind(tbl1,alt_10pm(),alt_12am())[order(therank(), decreasing=T), ][input$whichhighlight,]
   })
   
@@ -817,7 +819,7 @@ server <- function(input, output) {
     })
     
     output$thetable <- renderTable({
-      tbl1 <- cats[, c(1,3,20,5:8,11,16,17,18)]
+      tbl1 <- cats[, c(1,3,20,5:8,11,17,18,19)]
       cbind(therank(),tbl1,alt_10pm(),alt_12am())[order(therank(), decreasing=T), ]
     })
     
