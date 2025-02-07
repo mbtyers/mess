@@ -8,24 +8,28 @@ ui <- fluidPage(
     sidebarLayout(
         sidebarPanel(
           sliderInput("daysahead","How many days after today?",min=0,max=365,value=0),
-          sliderInput("thismany","How many to highlight?",min=1,max=20,value=5),
-          sliderInput("lat_deg","Latitude (deg): ",min=0,max=90,value=61.2176),
+          sliderInput("localtime","Hours before/after midnight:",min=-12, max=12, value=-3),
           checkboxInput("usemag","Rank with Magnitude?", value=TRUE),
-          checkboxInput("usesurf","Rank with Surface Brightness?", value=TRUE),
-          checkboxInput("usesize","Rank with Apparent Size?", value=TRUE),
-          checkboxInput("usealt","Rank with Altitude?", value=TRUE),
-          sliderInput("minalt","Minimum Altitude: ",min=0,max=90,value=0),
+          checkboxInput("usesurf","Rank with Surface Brightness?", value=FALSE),
+          checkboxInput("usesize","Rank with Apparent Size?", value=FALSE),
+          checkboxInput("usealt","Rank with Altitude?", value=FALSE),
+          checkboxInput("usen","Rank with Number of Neighbors?", value=FALSE),
+          sliderInput("minalt","Minimum Altitude: ",min=0,max=90,value=30),
           checkboxGroupInput("types","Which types?",
                              choices=c("Ellip Gal",  "Glob Clust", "Neb",    "NGC Gal",    "Open Clust", "Plan Neb","Spiral Gal"),
                              selected=c("Ellip Gal",  "Glob Clust", "Neb",    "NGC Gal",    "Open Clust", "Plan Neb","Spiral Gal")),
-          sliderInput("whichhighlight","Which to highlight",min=1,max=30,value=1)
+          sliderInput("thismany","How many to highlight?",min=1,max=20,value=5),
+          sliderInput("whichhighlight","Which to highlight",min=1,max=30,value=1),
+          sliderInput("lat_deg","Latitude (deg): ",min=-90,max=90,value=61.2176),
+          sliderInput("long_deg","Longitude (deg): ",min=-180,max=180,value=-149.9),
+          sliderInput("timezone","Time Zone: ",min=-12,max=12,value=-9),
+          checkboxInput("DST", "Daylight Savings Time", value=FALSE)
         ),
 
         mainPanel(
-          plotOutput("mainPlot", height="450px", width="1200px"),
-          tableOutput("theothertable"),
-          # plotOutput("subPlot", height="300px", width="1200px"),
-          plotOutput("subPlot", height="400px", width="400px"),
+          plotOutput("mainPlot", height="400px", width="1200px"),
+          # tableOutput("theothertable"),
+          plotOutput("subPlot", height="320px", width="600px"),
            tableOutput("thetable")
         )
     )
@@ -611,7 +615,7 @@ server <- function(input, output) {
   # calculate surface brightness
   cats$bright <- 10^(-.4*cats$mag)
   cats$area <- cats$arcmin1*cats$arcmin2
-  cats$surf_bright <- cats$bright/cats$area
+  cats$surf_bright <- cats$bright/cats$area / min(cats$bright/cats$area)
   
   cats$log_surf_bright <- log10(cats$surf_bright)
   
@@ -638,6 +642,17 @@ server <- function(input, output) {
   cats$type[cats$type_raw %in% c("Ln","El","Ir")] <- "Ellip Gal"
   cats$type[cats$type_raw %in% c("Gal")] <- "NGC Gal"
   
+  dotlaw <- function(d1, d2, a1, a2) {
+    acos(sin(d1)*sin(d2) + cos(d1)*cos(d2)*cos(a1-a2))
+  }
+  cat_dists <- matrix(nrow=nrow(cats), ncol=nrow(cats))
+  for(i in 1:nrow(cats)) {
+    for(j in (1:nrow(cats))[-i]) {
+      cat_dists[i,j] <- dotlaw(d1=cats$Dec_rad[i], d2=cats$Dec_rad[j],
+                               a1=cats$RA_rad[i], a2=cats$RA_rad[j])*180/pi
+    }
+  }
+  cats$n_neighbors <- as.character(rowSums(cat_dists <= 2.5, na.rm = TRUE))
   
   useforcolor <- cats$type
   # useforcolor <- cats$season
@@ -655,23 +670,30 @@ server <- function(input, output) {
     180/pi*asin((sin(lat())*sin(cats$Dec_rad))+
                                  (cos(lat())*cos(cats$Dec_rad)*cos(pi+date_adj()-cats$RA_rad)))
   })
-  alt_10pm <- reactive({
+  alt_time <- reactive({
     180/pi*asin((sin(lat())*sin(cats$Dec_rad))+
-                                 (cos(lat())*cos(cats$Dec_rad)*cos(10/12*pi+date_adj()-cats$RA_rad)))
+                                 (cos(lat())*cos(cats$Dec_rad)*cos(hour_adj()*pi+date_adj()-cats$RA_rad)))
+  })
+  az_time <- reactive({
+    a <- 180/pi*acos((sin(cats$Dec_rad) - sin(alt_time()*pi/180)*sin(lat())) / 
+                (cos(alt_time()*pi/180)*cos(lat())))
+    ifelse(sin(hour_adj()*pi+date_adj()-cats$RA_rad) > 0, a, 360-a) 
   })
   rankalt <- reactive({
-    rank(alt_10pm())
+    rank(alt_time())
   })
   ranksurf <- rank(cats$surf_bright)
   rankmag <- rank(-cats$mag)
   ranksize <- rank(cats$moons)
+  rankn <- rank(as.numeric(cats$n_neighbors))
   
   therank <- reactive({
-    ifelse(alt_10pm() > input$minalt & cats$type %in% input$types,
+    ifelse(alt_time() > input$minalt & cats$type %in% input$types,
            rank(rankalt()*input$usealt +
            ranksurf*input$usesurf +
            rankmag*input$usemag +
-           ranksize*input$usesize), 1)
+             ranksize*input$usesize +
+             rankn*input$usen), 1)
   })
   
   
@@ -681,6 +703,9 @@ server <- function(input, output) {
   })
   date_adj <- reactive({
     as.numeric(theday() - as.Date("2023-03-21"))*2*pi/365.25
+  })
+  hour_adj <- reactive({
+    (input$localtime + 12 + (input$long_deg/15 - (input$timezone + input$DST)))/12   
   })
   
   
@@ -693,8 +718,8 @@ server <- function(input, output) {
   
   
   thehighlightedone <- reactive({
-    tbl1 <- cats[, c(1,3,20,5:8,11,16,17,18,19)]
-    cbind(tbl1,alt_10pm(),alt_12am())[order(therank(), decreasing=T), ][input$whichhighlight,]
+    tbl1 <- cats[, c(1,3,5:8,11,22,23,17,18,19)]  # c(1,3,20,5:8,11,22,23,16,17,18,19)
+    cbind(tbl1,alt_time(),alt_12am())[order(therank(), decreasing=T), ][input$whichhighlight,]
   })
   
 
@@ -709,7 +734,7 @@ server <- function(input, output) {
       date0 <- as.Date(paste0(format(theday() - 80, "%Y"), "-03-21"))
       dates <- date0+365*date_rad/2/pi
       
-      time_adj <- 9/12*pi # 10pm not including DST
+      time_adj <- hour_adj()*pi # time not including DST
       # time_adj <- 12/12*pi # 12pm     
       
       alt_mat <- matrix(ncol=length(date_rad), nrow=nrow(cats))
@@ -718,7 +743,7 @@ server <- function(input, output) {
         ## I think this handles longitude wrong
       }  
       # plot(NA, xlim=range(dates), ylim=range(alt_mat), yaxt='n')
-      plot(dates,alt_mat[1,],col=0,ylim=range(alt_mat))
+      plot(dates,alt_mat[1,],col=0,ylim=range(alt_mat), ylab="Altitude")
       # axis(side=2,at=seq(-90,90,by=30))
       for(i in 1:nrow(alt_mat)) lines(dates, alt_mat[i,], 
                                       col=adjustcolor(thecolor[i], alpha.f=opacity()[i]),
@@ -744,7 +769,7 @@ server <- function(input, output) {
       timeslab[times>=24] <- times[times>=24]-24
       # dates <- as.Date("2022-03-21")+365*hour_rad/2/pi
       
-      # time_adj <- 10/12*pi # 10pm
+      # time_adj <- hour_adj()*pi # time
       
       # position of the sun
       r <- function(x) x*pi/180  # quick function to convert degrees to radians
@@ -767,11 +792,12 @@ server <- function(input, output) {
         ## I think this handles longitude wrong
       }  
       # plot(NA, xlim=range(dates), ylim=range(alt_mat), yaxt='n')
-      plot(times,alt_mat[1,],col=0,ylim=range(alt_mat), xaxt='n')
+      plot(times,alt_mat[1,],col=0,ylim=range(alt_mat), xaxt='n', ylab="Altitude")
       
       DST <- F   ##### fix this
       
-      axis(side=1,at=12:36,labels=c((13+DST):23,0:(13+DST)), las=2)
+      # axis(side=1,at=12:36,labels=c((13+DST):23,0:(13+DST)), las=2)
+      axis(side=1, at=(8:40 - (input$timezone - input$long_deg/15 + input$DST)), labels=(8:40 %% 24), las=2)
       for(i in 1:nrow(alt_mat)) lines(times, alt_mat[i,],
                                       col=adjustcolor(thecolor[i], alpha.f=opacity()[i]),
                                       lwd=2+3*highlight()[i])
@@ -784,10 +810,18 @@ server <- function(input, output) {
       # lines(times,alt_mat[42,],lwd=4)
       abline(h=c(0,30,60),lwd=c(2,1,1),lty=c(1,2,2))
       points(times,alt_sun)
-      lines(times,200*(alt_sun<(0))-100)
-      lines(times,200*(alt_sun<(-6))-100, lty=2)
-      lines(times,200*(alt_sun<(-12))-100, lty=3)
-      lines(times,200*(alt_sun<(-18))-100, lty=4)
+      # lines(times,200*(alt_sun<(0))-100)
+      # lines(times,200*(alt_sun<(-6))-100, lty=2)
+      # lines(times,200*(alt_sun<(-12))-100, lty=3)
+      # lines(times,200*(alt_sun<(-18))-100, lty=4)
+      polygon(x=c(0,0,40, 40, rev(times)), y=c(100, rep(-100,2), 100, rev(200*(alt_sun>(0))-100)), 
+              border=NA, col=adjustcolor(1, alpha.f=.07))
+      polygon(x=c(0,0,40, 40, rev(times)), y=c(100, rep(-100,2), 100, rev(200*(alt_sun>(-6))-100)), 
+              border=NA, col=adjustcolor(1, alpha.f=.07))
+      polygon(x=c(0,0,40, 40, rev(times)), y=c(100, rep(-100,2), 100, rev(200*(alt_sun>(-12))-100)), 
+              border=NA, col=adjustcolor(1, alpha.f=.07))
+      polygon(x=c(0,0,40, 40, rev(times)), y=c(100, rep(-100,2), 100, rev(200*(alt_sun>(-18))-100)), 
+              border=NA, col=adjustcolor(1, alpha.f=.07))
       legend("bottomright",col=adjustcolor(1:length(thenames), red.f=.85, blue.f=.85, green.f=.85),lwd=2,legend=thenames)
     })
     
@@ -805,22 +839,60 @@ server <- function(input, output) {
       # points(x=cats$surf_bright, y=rep(0, nrow(cats)))
       # abline(v=thehighlightedone()$surf_bright)
       # 
-      # plot(density(alt_10pm()))
-      # points(x=alt_10pm(), y=rep(0, nrow(cats)))
+      # plot(density(alt_time()))
+      # points(x=alt_time(), y=rep(0, nrow(cats)))
       # # abline(v=thehighlightedone()$surf_bright)
       
-      plot(cats$moons, cats$surf_bright, log="xy", col=thecolor, pch=16, 
-           xlab="Apparent size in Moons", ylab="Approx Surface Brightness")
-      abline(h=thehighlightedone()$surf_bright, col=adjustcolor(1,alpha.f=.5))
+      par(mfrow=c(1,2))   ########################## add a second panel to this plot
+      
+      # plot(cats$moons, cats$surf_bright, log="xy", col=thecolor, pch=16, 
+      #      xlab="Apparent size in Moons", ylab="Approx Surface Brightness (/min)")
+      plot(cats$moons, cats$surf_bright, log="xy", col=0, pch=16, 
+           xlab="Apparent size in Moons", ylab="Approx Surface Brightness (/min)")
+      for(i in 1:nrow(cats)) {
+        points(cats$moons[i], cats$surf_bright[i], pch=21,
+               col=thecolor[i],
+               bg=adjustcolor(thecolor[i], alpha.f=(.1+.9*opacity()[i])))
+      }
+      
+      
+      # abline(h=thehighlightedone()$surf_bright, col=adjustcolor(1,alpha.f=.5))
+      abline(h=cats$surf_bright[order(therank(), decreasing=T)][input$whichhighlight], 
+             col=adjustcolor(1,alpha.f=.5))
       abline(v=thehighlightedone()$moons, col=adjustcolor(1,alpha.f=.5))
-      mtext(text=paste(thehighlightedone()$ID[1], thehighlightedone()$name[1]),
-            at=thehighlightedone()$moons, side=3, line=1)
+      # labtext <- paste(thehighlightedone()$ID[1], thehighlightedone()$name[1])
+      labtext <- ifelse(!is.na(thehighlightedone()$name[1]),
+                        paste0("#", input$whichhighlight, ": ", thehighlightedone()$ID[1], " ", thehighlightedone()$name[1], " (", thehighlightedone()$type, ")"),
+                        paste0("#", input$whichhighlight, ": ", thehighlightedone()$ID[1], " (", thehighlightedone()$type, ")"))
+      mtext(text=labtext, at=thehighlightedone()$moons, side=3, line=1)
+      
+      xplot <- (90-alt_time())/90*sin(pi/180*az_time())
+      yplot <- (90-alt_time())/90*cos(pi/180*az_time())
+      plot(NA, xlim=c(-1,1), ylim=c(-1,1), xlab="", ylab="", main="", 
+           bty="n", yaxt="n", xaxt="n")
+      polygon(x=cos(seq(0,to=2*pi,length.out=100)), y=sin(seq(0,to=2*pi,length.out=100)),
+              border="grey")
+      # polygon(x=0.5*cos(seq(0,to=2*pi,length.out=100)), y=0.5*sin(seq(0,to=2*pi,length.out=100)),
+      #         border="grey", lty=3)
+      polygon(x=0.33*cos(seq(0,to=2*pi,length.out=100)), y=0.33*sin(seq(0,to=2*pi,length.out=100)),
+              border="grey", lty=3)
+      polygon(x=0.67*cos(seq(0,to=2*pi,length.out=100)), y=0.67*sin(seq(0,to=2*pi,length.out=100)),
+              border="grey", lty=3)
+      for(i in 1:length(xplot)) {
+        points(xplot[i], yplot[i], pch=16, 
+               col=adjustcolor(thecolor[i], alpha.f=opacity()[i]))
+      }
+      xhighlight <- xplot[order(therank(), decreasing=T)][input$whichhighlight]
+      yhighlight <- yplot[order(therank(), decreasing=T)][input$whichhighlight]
+      points(xhighlight, yhighlight, cex=2)
+      
+      text(y=c(1,-1,0,0), x=c(0,0,1,-1), labels=c("N","S","W","E"))
       
     })
     
     output$thetable <- renderTable({
-      tbl1 <- cats[, c(1,3,20,5:8,11,17,18,19)]
-      cbind(therank(),tbl1,alt_10pm(),alt_12am())[order(therank(), decreasing=T), ]
+      tbl1 <- cats[, c(1,3,22,18,19,11,23,17,5:8)]  # c(1,3,20,5:8,11,22,23,17,18,19)
+      cbind(tbl1,alt_time(),alt_12am())[order(therank(), decreasing=T), ]
     })
     
     output$theothertable <- renderTable({
