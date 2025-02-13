@@ -14,7 +14,8 @@ ui <- fluidPage(
           checkboxInput("usesize","Rank with Apparent Size?", value=FALSE),
           checkboxInput("usealt","Rank with Altitude?", value=FALSE),
           checkboxInput("usen","Rank with Number of Neighbors?", value=FALSE),
-          sliderInput("minalt","Minimum Altitude: ",min=0,max=90,value=30),
+          sliderInput("ndeg","Neighbors within (deg): ",min=0,max=10,value=2.5,step=0.5),
+          sliderInput("minalt","Minimum Altitude (deg): ",min=0,max=90,value=30),
           checkboxGroupInput("types","Which types?",
                              choices=c("Ellip Gal",  "Glob Clust", "Neb",    "NGC Gal",    "Open Clust", "Plan Neb","Spiral Gal"),
                              selected=c("Ellip Gal",  "Glob Clust", "Neb",    "NGC Gal",    "Open Clust", "Plan Neb","Spiral Gal")),
@@ -626,7 +627,8 @@ server <- function(input, output) {
   cats$moons <- cats$arcmin1/31
   
   # angular size in pixels at 135mm with crop sensor
-  cats$pix_135 <- cats$arcmin1*60/6.42
+  cats$pix_135 <- as.integer(cats$arcmin1*60/6.42)
+  cats$pix_250 <- as.integer(cats$arcmin1*60/3.47)
   
   # converting angles to radians
   cats$RA_rad <- cats$RA_deg*pi/180
@@ -652,7 +654,7 @@ server <- function(input, output) {
                                a1=cats$RA_rad[i], a2=cats$RA_rad[j])*180/pi
     }
   }
-  cats$n_neighbors <- as.character(rowSums(cat_dists <= 2.5, na.rm = TRUE))
+  # cats$n_neighbors <- as.integer(rowSums(cat_dists <= 2.5, na.rm = TRUE))
   
   useforcolor <- cats$type
   # useforcolor <- cats$season
@@ -679,13 +681,19 @@ server <- function(input, output) {
                 (cos(alt_time()*pi/180)*cos(lat())))
     ifelse(sin(hour_adj()*pi+date_adj()-cats$RA_rad) > 0, a, 360-a) 
   })
+  n_neighbors <- reactive({
+    as.integer(rowSums(cat_dists <= input$ndeg, na.rm = TRUE))
+  })
   rankalt <- reactive({
     rank(alt_time())
   })
   ranksurf <- rank(cats$surf_bright)
   rankmag <- rank(-cats$mag)
   ranksize <- rank(cats$moons)
-  rankn <- rank(as.numeric(cats$n_neighbors))
+  # rankn <- rank(as.numeric(cats$n_neighbors))
+  rankn <- reactive({
+    rank(n_neighbors())
+  })
   
   therank <- reactive({
     ifelse(alt_time() > input$minalt & cats$type %in% input$types,
@@ -693,7 +701,7 @@ server <- function(input, output) {
            ranksurf*input$usesurf +
            rankmag*input$usemag +
              ranksize*input$usesize +
-             rankn*input$usen), 1)
+             rankn()*input$usen), 1)
   })
   
   
@@ -891,8 +899,9 @@ server <- function(input, output) {
     })
     
     output$thetable <- renderTable({
-      tbl1 <- cats[, c(1,3,22,18,19,11,23,17,5:8)]  # c(1,3,20,5:8,11,22,23,17,18,19)
-      cbind(tbl1,alt_time(),alt_12am())[order(therank(), decreasing=T), ]
+      # tbl1 <- cats[, c(1,3,22,18,19,11,23,17,5:8)]  # c(1,3,20,5:8,11,22,23,17,18,19)
+      tbl1 <- cats[, c(1,3,22,18,19,20,11,17,5:8)]  # c(1,3,20,5:8,11,22,23,17,18,19)
+      cbind(tbl1,n_neighbors(),alt_time(),alt_12am())[order(therank(), decreasing=T), ]
     })
     
     output$theothertable <- renderTable({
