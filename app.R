@@ -9,17 +9,18 @@ ui <- fluidPage(
         sidebarPanel(
           sliderInput("daysahead","How many days after today?",min=0,max=365,value=0),
           sliderInput("localtime","Hours before/after midnight:",min=-12, max=12, value=-3),
+          sliderInput("minalt","Minimum Altitude (deg): ",min=0,max=90,value=30),
           checkboxInput("usemag","Rank with Magnitude?", value=TRUE),
           checkboxInput("usesurf","Rank with Surface Brightness?", value=FALSE),
           checkboxInput("usesize","Rank with Apparent Size?", value=FALSE),
           checkboxInput("usealt","Rank with Altitude?", value=FALSE),
-          checkboxInput("usen","Rank with Number of Neighbors?", value=FALSE),
-          sliderInput("ndeg","Neighbors within (deg): ",min=0,max=10,value=2.5,step=0.5),
-          sliderInput("minalt","Minimum Altitude (deg): ",min=0,max=90,value=30),
+          checkboxInput("usen","Rank with Number of Neighbors ...", value=FALSE),
+          sliderInput("ndeg","Neighbors within (deg)",min=0,max=10,value=2.5,step=0.5),
           checkboxGroupInput("types","Which types?",
-                             choices=c("Ellip Gal",  "Glob Clust", "Neb",    "NGC Gal",    "Open Clust", "Plan Neb","Spiral Gal"),
+                             # choices=c("Ellip Gal",  "Glob Clust", "Neb",    "NGC Gal",    "Open Clust", "Plan Neb","Spiral Gal"),
+                             choices=c("Spiral Gal", "Ellip Gal",    "NGC Gal",  "Neb", "Plan Neb","Glob Clust",     "Open Clust"),
                              selected=c("Ellip Gal",  "Glob Clust", "Neb",    "NGC Gal",    "Open Clust", "Plan Neb","Spiral Gal")),
-          sliderInput("thismany","How many to highlight?",min=1,max=20,value=5),
+          # sliderInput("thismany","How many to highlight?",min=1,max=20,value=5),
           sliderInput("whichhighlight","Which to highlight",min=1,max=30,value=1),
           sliderInput("lat_deg","Latitude (deg): ",min=-90,max=90,value=61.2176),
           sliderInput("long_deg","Longitude (deg): ",min=-180,max=180,value=-149.9),
@@ -306,7 +307,7 @@ server <- function(input, output) {
   mess_raw <- data.frame(
     stringsAsFactors = FALSE,
     check.names = FALSE,
-    M = c(NA,"M1",
+    M = c(NA,"M1", 
           "M2","M3","M4","M5","M6","M7","M8",
           "M9","M10","M11","M12","M13","M14","M15",
           "M16","M17","M18","M19","M20","M21","M22",
@@ -644,6 +645,14 @@ server <- function(input, output) {
   cats$type[cats$type_raw %in% c("Ln","El","Ir")] <- "Ellip Gal"
   cats$type[cats$type_raw %in% c("Gal")] <- "NGC Gal"
   
+  # "<a href='http://google.com' target='_blank'>GOOGLE</a>"
+  # links <- c("https://en.wikipedia.org/wiki/Crab_Nebula", "https://en.wikipedia.org/wiki/Messier_2", "https://en.wikipedia.org/wiki/Messier_3", "https://en.wikipedia.org/wiki/Messier_4", "https://en.wikipedia.org/wiki/Messier_5", "https://en.wikipedia.org/wiki/Butterfly_Cluster", "https://en.wikipedia.org/wiki/Messier_7", "https://en.wikipedia.org/wiki/Lagoon_Nebula", "https://en.wikipedia.org/wiki/Messier_9", "https://en.wikipedia.org/wiki/Messier_10", "https://en.wikipedia.org/wiki/Wild_Duck_Cluster", "https://en.wikipedia.org/wiki/Messier_12", "https://en.wikipedia.org/wiki/Messier_13", "https://en.wikipedia.org/wiki/Messier_14", "https://en.wikipedia.org/wiki/Messier_15", "https://en.wikipedia.org/wiki/Eagle_Nebula", "https://en.wikipedia.org/wiki/Omega_Nebula", "https://en.wikipedia.org/wiki/Messier_18", "https://en.wikipedia.org/wiki/Messier_19", "https://en.wikipedia.org/wiki/Trifid_Nebula", "https://en.wikipedia.org/wiki/Messier_21", "https://en.wikipedia.org/wiki/Messier_22", "https://en.wikipedia.org/wiki/Messier_23", "https://en.wikipedia.org/wiki/Small_Sagittarius_Star_Cloud", "https://en.wikipedia.org/wiki/Messier_25", "https://en.wikipedia.org/wiki/Messier_26", "https://en.wikipedia.org/wiki/Dumbbell_Nebula", "https://en.wikipedia.org/wiki/Messier_28", "https://en.wikipedia.org/wiki/Messier_29", "https://en.wikipedia.org/wiki/Messier_30", "https://en.wikipedia.org/wiki/Andromeda_Galaxy", "https://en.wikipedia.org/wiki/Messier_32", "https://en.wikipedia.org/wiki/Triangulum_Galaxy", "https://en.wikipedia.org/wiki/Messier_34", "https://en.wikipedia.org/wiki/Messier_35", "https://en.wikipedia.org/wiki/Messier_36", "https://en.wikipedia.org/wiki/Messier_37", "https://en.wikipedia.org/wiki/Messier_38", "https://en.wikipedia.org/wiki/Messier_39", "https://en.wikipedia.org/wiki/Winnecke_4", "https://en.wikipedia.org/wiki/Messier_41", "https://en.wikipedia.org/wiki/Orion_Nebula", "https://en.wikipedia.org/wiki/Messier_43", "https://en.wikipedia.org/wiki/Beehive_Cluster", "https://en.wikipedia.org/wiki/Pleiades", "https://en.wikipedia.org/wiki/Messier_46", "https://en.wikipedia.org/wiki/Messier_47", "https://en.wikipedia.org/wiki/Messier_48", "https://en.wikipedia.org/wiki/Messier_49", "https://en.wikipedia.org/wiki/Messier_50", "https://en.wikipedia.org/wiki/Whirlpool_Galaxy", "https://en.wikipedia.org/wiki/Messier_52", "https://en.wikipedia.org/wiki/Messier_53", "https://en.wikipedia.org/wiki/Messier_54", "https://en.wikipedia.org/wiki/Messier_55", "https://en.wikipedia.org/wiki/Messier_56", "https://en.wikipedia.org/wiki/Ring_Nebula", "https://en.wikipedia.org/wiki/Messier_58", NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA)
+  links <- paste0("https://en.wikipedia.org/wiki/",
+                  cats$catalog, "_",
+                  as.numeric(gsub(".*?([0-9]+).*", "\\1", cats$ID)))
+  
+  cats$IDD <- paste0("<a href='", links, "' target='_blank'>", cats$ID, "</a>")
+  
   dotlaw <- function(d1, d2, a1, a2) {
     acos(sin(d1)*sin(d2) + cos(d1)*cos(d2)*cos(a1-a2))
   }
@@ -718,7 +727,7 @@ server <- function(input, output) {
   
   
   highlight <- reactive({
-    rank(therank()) >= nrow(cats)-input$thismany
+    rank(therank()) >= nrow(cats) - 5 #input$thismany
   })
   opacity <- reactive({
     (therank()/max(therank()))^7  # try transforms here??
@@ -734,41 +743,6 @@ server <- function(input, output) {
     output$mainPlot <- renderPlot({
       
       par(mfrow=c(1,2))
-      
-      ### plot of altitude by date (at given time)
-      
-      date_rad <- seq(0,2*pi,length.out=366)[-366]
-      # date0 <- as.Date("2023-03-21")
-      date0 <- as.Date(paste0(format(theday() - 80, "%Y"), "-03-21"))
-      dates <- date0+365*date_rad/2/pi
-      
-      time_adj <- hour_adj()*pi # time not including DST
-      # time_adj <- 12/12*pi # 12pm     
-      
-      alt_mat <- matrix(ncol=length(date_rad), nrow=nrow(cats))
-      for(j in 1:ncol(alt_mat)) {
-        alt_mat[,j] <- 180/pi*asin((sin(lat())*sin(cats$Dec_rad))+(cos(lat())*cos(cats$Dec_rad)*cos(date_rad[j]+time_adj-cats$RA_rad)))
-        ## I think this handles longitude wrong
-      }  
-      # plot(NA, xlim=range(dates), ylim=range(alt_mat), yaxt='n')
-      plot(dates,alt_mat[1,],col=0,ylim=range(alt_mat), ylab="Altitude")
-      # axis(side=2,at=seq(-90,90,by=30))
-      for(i in 1:nrow(alt_mat)) lines(dates, alt_mat[i,], 
-                                      col=adjustcolor(thecolor[i], alpha.f=opacity()[i]),
-                                      lwd=2+3*highlight()[i])
-      for(i in (1:nrow(alt_mat))[highlight()]) text(dates[alt_mat[i,]==max(alt_mat[i,])], max(alt_mat[i,]),
-                                                  labels=cats$ID[i], pos=3)
-      
-      points(dates, alt_mat[cats$ID==thehighlightedone()$ID,], col=adjustcolor(1,alpha.f=.1), cex=3)
-      
-      # col=as.numeric(as.factor(mess$Type))[i])
-      # lines(dates,alt_mat[42,],lwd=4)
-      abline(h=c(0,30,60),lwd=c(2,1,1),lty=c(1,2,2))
-      abline(v=theday())
-      text(x=theday(), y=par("usr")[4], labels=theday(), xpd=NA, pos=3)
-      legend("bottomright",col=adjustcolor(1:length(thenames), red.f=.85, blue.f=.85, green.f=.85),lwd=2,legend=thenames)
-      
-      
       
       ### plot of altitude by time (at given date)
       
@@ -800,7 +774,8 @@ server <- function(input, output) {
         ## I think this handles longitude wrong
       }  
       # plot(NA, xlim=range(dates), ylim=range(alt_mat), yaxt='n')
-      plot(times,alt_mat[1,],col=0,ylim=range(alt_mat), xaxt='n', ylab="Altitude")
+      plot(times,alt_mat[1,],col=0,ylim=range(alt_mat), xaxt='n', 
+           ylab="Altitude", xlab="Time", main="At specified date")
       
       DST <- F   ##### fix this
       
@@ -830,7 +805,43 @@ server <- function(input, output) {
               border=NA, col=adjustcolor(1, alpha.f=.07))
       polygon(x=c(0,0,40, 40, rev(times)), y=c(100, rep(-100,2), 100, rev(200*(alt_sun>(-18))-100)), 
               border=NA, col=adjustcolor(1, alpha.f=.07))
+      legend("bottomright",col=adjustcolor(1:length(thenames), red.f=.85, blue.f=.85, green.f=.85),lwd=2,legend=thenames)      
+      ### plot of altitude by date (at given time)
+      
+      date_rad <- seq(0,2*pi,length.out=366)[-366]
+      # date0 <- as.Date("2023-03-21")
+      date0 <- as.Date(paste0(format(theday() - 80, "%Y"), "-03-21"))
+      dates <- date0+365*date_rad/2/pi
+      
+      time_adj <- hour_adj()*pi # time not including DST
+      # time_adj <- 12/12*pi # 12pm     
+      
+      alt_mat <- matrix(ncol=length(date_rad), nrow=nrow(cats))
+      for(j in 1:ncol(alt_mat)) {
+        alt_mat[,j] <- 180/pi*asin((sin(lat())*sin(cats$Dec_rad))+(cos(lat())*cos(cats$Dec_rad)*cos(date_rad[j]+time_adj-cats$RA_rad)))
+        ## I think this handles longitude wrong
+      }  
+      # plot(NA, xlim=range(dates), ylim=range(alt_mat), yaxt='n')
+      plot(dates,alt_mat[1,],col=0,ylim=range(alt_mat), 
+           ylab="Altitude", xlab="Date", main="At specified time")
+      # axis(side=2,at=seq(-90,90,by=30))
+      for(i in 1:nrow(alt_mat)) lines(dates, alt_mat[i,], 
+                                      col=adjustcolor(thecolor[i], alpha.f=opacity()[i]),
+                                      lwd=2+3*highlight()[i])
+      for(i in (1:nrow(alt_mat))[highlight()]) text(dates[alt_mat[i,]==max(alt_mat[i,])], max(alt_mat[i,]),
+                                                  labels=cats$ID[i], pos=3)
+      
+      points(dates, alt_mat[cats$ID==thehighlightedone()$ID,], col=adjustcolor(1,alpha.f=.1), cex=3)
+      
+      # col=as.numeric(as.factor(mess$Type))[i])
+      # lines(dates,alt_mat[42,],lwd=4)
+      abline(h=c(0,30,60),lwd=c(2,1,1),lty=c(1,2,2))
+      abline(v=theday())
+      text(x=theday(), y=par("usr")[4], labels=theday(), xpd=NA, pos=3)
       legend("bottomright",col=adjustcolor(1:length(thenames), red.f=.85, blue.f=.85, green.f=.85),lwd=2,legend=thenames)
+      
+      
+
     })
     
     output$subPlot <- renderPlot({
@@ -900,9 +911,9 @@ server <- function(input, output) {
     
     output$thetable <- renderTable({
       # tbl1 <- cats[, c(1,3,22,18,19,11,23,17,5:8)]  # c(1,3,20,5:8,11,22,23,17,18,19)
-      tbl1 <- cats[, c(1,3,22,18,19,20,11,17,5:8)]  # c(1,3,20,5:8,11,22,23,17,18,19)
+      tbl1 <- cats[, c(24,3,23,18,19,20,11,17,5:8)]  # c(1,3,20,5:8,11,22,23,17,18,19)
       cbind(tbl1,n_neighbors(),alt_time(),alt_12am())[order(therank(), decreasing=T), ]
-    })
+    }, sanitize.text.function = function(x) x)
     
     output$theothertable <- renderTable({
       thehighlightedone()
