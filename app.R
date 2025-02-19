@@ -5,10 +5,15 @@ ui <- fluidPage(
     # Application title
     titlePanel("Messing with NGC"),
 
+    # tags$head(
+    #   tags$style(HTML("hr {border-top: 1px solid #000000;}"))
+    # ),
+    
     sidebarLayout(
         sidebarPanel(
           sliderInput("daysahead","How many days after today?",min=0,max=365,value=0),
           sliderInput("localtime","Hours before/after midnight:",min=-12, max=12, value=-3),
+          # hr(),
           sliderInput("minalt","Minimum Altitude (deg): ",min=0,max=90,value=30),
           checkboxInput("usemag","Rank with Magnitude?", value=TRUE),
           checkboxInput("usesurf","Rank with Surface Brightness?", value=FALSE),
@@ -22,6 +27,7 @@ ui <- fluidPage(
                              selected=c("Ellip Gal",  "Glob Clust", "Neb",    "NGC Gal",    "Open Clust", "Plan Neb","Spiral Gal")),
           # sliderInput("thismany","How many to highlight?",min=1,max=20,value=5),
           sliderInput("whichhighlight","Which to highlight",min=1,max=30,value=1),
+          # hr(),
           sliderInput("lat_deg","Latitude (deg): ",min=-90,max=90,value=61.2176),
           sliderInput("long_deg","Longitude (deg): ",min=-180,max=180,value=-149.9),
           sliderInput("timezone","Time Zone: ",min=-12,max=12,value=-9),
@@ -677,7 +683,7 @@ server <- function(input, output) {
     input$lat_deg*pi/180
     })
   
-  alt_12am <- reactive({
+  alt_mid <- reactive({
     180/pi*asin((sin(lat())*sin(cats$Dec_rad))+
                                  (cos(lat())*cos(cats$Dec_rad)*cos(pi+date_adj()-cats$RA_rad)))
   })
@@ -736,7 +742,7 @@ server <- function(input, output) {
   
   thehighlightedone <- reactive({
     tbl1 <- cats[, c(1,3,5:8,11,22,23,17,18,19)]  # c(1,3,20,5:8,11,22,23,16,17,18,19)
-    cbind(tbl1,alt_time(),alt_12am())[order(therank(), decreasing=T), ][input$whichhighlight,]
+    cbind(tbl1,alt_time(),alt_mid())[order(therank(), decreasing=T), ][input$whichhighlight,]
   })
   
 
@@ -777,7 +783,8 @@ server <- function(input, output) {
       plot(times,alt_mat[1,],col=0,ylim=range(alt_mat), xaxt='n', 
            ylab="Altitude", xlab="Time", main="At specified date")
       
-      DST <- F   ##### fix this
+      # DST <- F   ##### fix this
+      abline(v=input$localtime+23, lty=3, col=adjustcolor(1, alpha.f=.3))
       
       # axis(side=1,at=12:36,labels=c((13+DST):23,0:(13+DST)), las=2)
       axis(side=1, at=(8:40 - (input$timezone - input$long_deg/15 + input$DST)), labels=(8:40 %% 24), las=2)
@@ -806,11 +813,21 @@ server <- function(input, output) {
       polygon(x=c(0,0,40, 40, rev(times)), y=c(100, rep(-100,2), 100, rev(200*(alt_sun>(-18))-100)), 
               border=NA, col=adjustcolor(1, alpha.f=.07))
       legend("bottomright",col=adjustcolor(1:length(thenames), red.f=.85, blue.f=.85, green.f=.85),lwd=2,legend=thenames)      
+      
+      
+      
+      
       ### plot of altitude by date (at given time)
       
-      date_rad <- seq(0,2*pi,length.out=366)[-366]
+      date_rad <- seq(0,2*pi,length.out=366)[-366] + 
+        (as.POSIXlt(theday())$yday - 80 - 150)/365*2*pi
+      
       # date0 <- as.Date("2023-03-21")
-      date0 <- as.Date(paste0(format(theday() - 80, "%Y"), "-03-21"))
+      if(as.POSIXlt(theday())$yday < 80) {
+        date0 <- as.Date(paste0(format(theday() - 80, "%Y"), "-03-21")) + 365
+      } else {
+        date0 <- as.Date(paste0(format(theday() - 80, "%Y"), "-03-21"))
+      }
       dates <- date0+365*date_rad/2/pi
       
       time_adj <- hour_adj()*pi # time not including DST
@@ -912,7 +929,7 @@ server <- function(input, output) {
     output$thetable <- renderTable({
       # tbl1 <- cats[, c(1,3,22,18,19,11,23,17,5:8)]  # c(1,3,20,5:8,11,22,23,17,18,19)
       tbl1 <- cats[, c(24,3,23,18,19,20,11,17,5:8)]  # c(1,3,20,5:8,11,22,23,17,18,19)
-      cbind(tbl1,n_neighbors(),alt_time(),alt_12am())[order(therank(), decreasing=T), ]
+      cbind(tbl1,n_neighbors(),alt_time(),alt_mid())[order(therank(), decreasing=T), ]
     }, sanitize.text.function = function(x) x)
     
     output$theothertable <- renderTable({

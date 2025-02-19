@@ -1,0 +1,13 @@
+name: mess
+title: mess
+username: mbtyers
+account: mbtyers
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 14036549
+bundleId: 9821071
+url: https://mbtyers.shinyapps.io/mess/
+version: 1
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: README.md
